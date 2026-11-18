@@ -1,0 +1,59 @@
+{
+  "name": "@universal-booking/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "dev": "tsx watch --clear-screen=false src/server.ts",
+    "start": "node dist/server.js",
+    "worker": "tsx src/worker.ts",
+    "start:worker": "node dist/worker.js",
+    "build": "tsup",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "test:unit": "vitest run test/unit",
+    "openapi": "tsx src/scripts/openapi.ts",
+    "seed:demo": "tsx src/scripts/seed-demo.ts"
+  },
+  "dependencies": {
+    "@universal-booking/auth": "*",
+    "@universal-booking/availability-engine": "*",
+    "@universal-booking/booking-engine": "*",
+    "@universal-booking/config": "*",
+    "@universal-booking/contracts": "*",
+    "@universal-booking/core": "*",
+    "@universal-booking/database": "*",
+    "@universal-booking/notification-providers": "*",
+    "@universal-booking/payment-providers": "*",
+    "@universal-booking/pricing-engine": "*",
+    "@universal-booking/resource-engine": "*",
+    "@universal-booking/webhooks": "*",
+    "@universal-booking/workflow-engine": "*",
+    "bullmq": "^5.58.0",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.6",
+    "drizzle-orm": "^0.45.4",
+    "express": "^5.3.0",
+    "express-rate-limit": "^8.3.0",
+    "helmet": "^8.1.0",
+    "luxon": "^3.7.2",
+    "pg-boss": "^10.4.2",
+    "pino": "^10.4.0",
+    "pino-http": "^11.0.0",
+    "socket.io": "^4.8.4",
+    "zod": "^4.1.0"
+  },
+  "devDependencies": {
+    "@types/cookie-parser": "^1.4.10",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/luxon": "^3.7.0",
+    "@types/supertest": "^6.0.3",
+    "pino-pretty": "^13.2.0",
+    "supertest": "^7.1.4",
+    "tsup": "^8.5.0"
+  }
+}

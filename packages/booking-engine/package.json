@@ -1,0 +1,22 @@
+{
+  "name": "@universal-booking/booking-engine",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "test:unit": "vitest run"
+  },
+  "dependencies": {
+    "@universal-booking/availability-engine": "*",
+    "@universal-booking/core": "*",
+    "@universal-booking/pricing-engine": "*",
+    "@universal-booking/resource-engine": "*",
+    "@universal-booking/workflow-engine": "*",
+    "zod": "^4.1.0"
+  }
+}
