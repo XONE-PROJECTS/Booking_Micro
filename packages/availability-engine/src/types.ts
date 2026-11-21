@@ -75,6 +75,8 @@ export interface RecurrenceInput {
 }
 
 export interface AvailabilityRequest {
+  /** When set, scopes capacity rules that depend on service identity. */
+  serviceId?: string;
   startDate?: string;
   endDate?: string;
   startTime?: string;

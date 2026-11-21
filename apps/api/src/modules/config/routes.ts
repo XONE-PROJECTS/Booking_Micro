@@ -4,10 +4,14 @@ import { errors, isAppError, validateFormSubmission, type FormSchema } from '@un
 import { validateWorkflow, type WorkflowDefinition } from '@universal-booking/workflow-engine';
 import { builtInPricingStrategies, formulaVariables } from '@universal-booking/pricing-engine';
 import { bookingDefinitions, bookingPolicies, formDefinitions, services, tenantSettings, workflowDefinitions, workflowStatuses, workflowTransitions, type Tx } from '@universal-booking/database';
-import { bookingDefinitionInput, definitionValidateInput, formInput, policyInput, workflowInput } from '@universal-booking/contracts';
+import { bookingDefinitionInput, definitionValidateInput, formInput, policyInput, previewInput, workflowInput } from '@universal-booking/contracts';
+import { quoteForService } from '../pricing/load';
+import { loadServiceVersion } from '../catalog/services';
+import type { ServiceSnapshot } from '@universal-booking/database';
 import { z } from 'zod';
 import type { RouteBuilder } from '../../http/route';
-import { familyIds, versionedRoutes } from './versioned';
+import { familyIds, resolvePublished, versionedRoutes } from './versioned';
+import { publishService } from '../catalog/services';
 import { invalidateTenant } from '../tenancy/tenant-cache';
 
 export async function materializeWorkflow(tx: Tx, tenantId: string, workflowId: string, def: WorkflowDefinition) {
@@ -77,6 +81,51 @@ export function registerConfigRoutes(route: RouteBuilder) {
         if (isAppError(e)) return { valid: false, errors: e.details.length ? e.details : [{ message: e.message }] };
         throw e;
       }
+    },
+  });
+
+  route({
+    method: 'post',
+    path: '/config/preview',
+    summary: 'Simulate availability and pricing for a draft booking configuration',
+    tags: ['Configuration'],
+    auth: 'user',
+    permission: 'catalog.read',
+    body: previewInput.extend({ serviceId: z.uuid().optional() }),
+    async handler({ app, tx, tenant, body }) {
+      const definition = app.bookingStrategies.validate(body.definition);
+      if (!body.serviceId || !body.request) {
+        return { definition, valid: true, note: 'Provide serviceId and request to simulate availability and pricing.' };
+      }
+      const { version, service } = await tx((t) => loadServiceVersion(t, body.serviceId!));
+      const snap: ServiceSnapshot = {
+        ...version.snapshot,
+        definition,
+        currency: body.currency,
+        basePrice: body.basePrice ?? version.snapshot.basePrice,
+        workflowId: body.workflowId ?? version.snapshot.workflowId,
+        policyId: body.policyId ?? version.snapshot.policyId,
+        formId: body.formId ?? version.snapshot.formId,
+      };
+      const { plan, workflow, policy } = await tx((t) =>
+        quoteForService(app, t, {
+          tenantId: tenant.id,
+          timezone: tenant.timezone,
+          snap,
+          serviceId: service.id,
+          request: body.request!,
+          actor: 'staff',
+        }),
+      );
+      return {
+        availability: plan.availability,
+        pricing: plan.pricing,
+        paymentRequired: plan.paymentRequired,
+        approvalRequired: plan.approvalRequired,
+        workflowId: snap.workflowId,
+        policy,
+        workflow: workflow ? { statuses: workflow.statuses.length, transitions: workflow.transitions.length } : null,
+      };
     },
   });
 
@@ -199,6 +248,75 @@ export function registerConfigRoutes(route: RouteBuilder) {
     toValues: (b, c) => {
       const definition = c.app.bookingStrategies.validate(b.definition);
       return { name: b.name, description: b.description ?? null, strategy: definition.strategy, definition };
+    },
+  });
+
+  const builderBody = z.object({
+    serviceId: z.uuid(),
+    definition: z.unknown().optional(),
+    workflowId: z.uuid().nullish(),
+    policyId: z.uuid().nullish(),
+    formId: z.uuid().nullish(),
+    resourceIds: z.array(z.uuid()).optional(),
+    request: previewInput.shape.request.optional(),
+  });
+
+  route({
+    method: 'post',
+    path: '/config/builder/validate',
+    summary: 'Validate a draft service configuration before publish',
+    tags: ['Configuration'],
+    auth: 'user',
+    permission: 'catalog.manage',
+    body: builderBody,
+    async handler({ app, tx, body }) {
+      const errors: { message: string }[] = [];
+      if (body.definition) {
+        try {
+          app.bookingStrategies.validate(body.definition);
+        } catch (e) {
+          if (isAppError(e)) errors.push(...(e.details.length ? e.details.map((d) => ({ message: d.message })) : [{ message: e.message }]));
+        }
+      }
+      if (body.workflowId) {
+        const row = await tx((t) => resolvePublished(t, workflowDefinitions, body.workflowId!));
+        if (!row) errors.push({ message: 'Workflow is not published.' });
+        else {
+          const wf = validateWorkflow(row.definition);
+          if (!wf.valid) errors.push(...wf.errors.map((m) => ({ message: typeof m === 'string' ? m : m.message })));
+        }
+      }
+      if (body.formId) {
+        const row = await tx((t) => resolvePublished(t, formDefinitions, body.formId!));
+        if (!row) errors.push({ message: 'Form is not published.' });
+      }
+      return { valid: errors.length === 0, errors };
+    },
+  });
+
+  route({
+    method: 'post',
+    path: '/config/builder/publish',
+    summary: 'Publish a service after builder validation',
+    tags: ['Configuration'],
+    auth: 'user',
+    permission: 'catalog.manage',
+    body: builderBody,
+    async handler({ app, tx, tenant, identity, body, audit }) {
+      const res = await tx(async (t) => {
+        const [svc] = await t.select().from(services).where(eq(services.id, body.serviceId));
+        if (!svc) throw errors.notFound('Service');
+        if (body.definition) {
+          const definition = app.bookingStrategies.validate(body.definition);
+          await t.update(services).set({ definition, updatedAt: new Date() }).where(eq(services.id, svc.id));
+        }
+        if (body.resourceIds) await (await import('../catalog/services')).setServiceResources(t, tenant.id, svc.id, body.resourceIds);
+        const [fresh] = await t.select().from(services).where(eq(services.id, svc.id));
+        const published = await publishService(app, t, tenant, fresh!, identity.principalId ?? null);
+        await audit({ action: 'service.published', entityType: 'Service', entityId: svc.id, changes: { version: published.version.version } }, t);
+        return { serviceId: svc.id, version: published.version.version, currentVersionId: published.version.id };
+      });
+      return res;
     },
   });
 }

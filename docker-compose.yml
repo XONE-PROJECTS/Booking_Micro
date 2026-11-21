@@ -1,0 +1,43 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: booking
+      POSTGRES_PASSWORD: booking
+      POSTGRES_DB: booking
+    ports:
+      - '54329:5432'
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: npm run start -w @universal-booking/api
+    environment:
+      DATABASE_URL: postgresql://booking:booking@postgres:5432/booking
+      JWT_SECRET: development-secret-at-least-32-characters
+      ENCRYPTION_KEY: development-encryption-key-32chars
+      MIGRATE_ON_START: 'true'
+      NODE_ENV: development
+    ports:
+      - '6767:6767'
+    depends_on:
+      - postgres
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: npm run worker -w @universal-booking/api
+    environment:
+      DATABASE_URL: postgresql://booking:booking@postgres:5432/booking
+      JWT_SECRET: development-secret-at-least-32-characters
+      ENCRYPTION_KEY: development-encryption-key-32chars
+      JOBS_ENABLED: 'true'
+    depends_on:
+      - postgres
+
+volumes:
+  pgdata:

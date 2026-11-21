@@ -95,6 +95,26 @@ export const bookingView = z.object({
   accessToken: z.string().optional().describe('Returned once on creation for guest bookings; required for guest lookup'),
 });
 
+export const paymentView = z.object({
+  id,
+  bookingId: id,
+  providerId: id.nullable(),
+  provider: z.string(),
+  method: z.string().nullable(),
+  kind: z.string(),
+  amount: money,
+  amountRefunded: money,
+  currency: z.string(),
+  status: z.string(),
+  reference: z.string().nullable(),
+  checkoutUrl: z.string().nullable(),
+  expiresAt: z.string().nullable(),
+  paidAt: z.string().nullable(),
+  failureReason: z.string().nullable(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+
 export const serviceView = z.object({
   id,
   name: z.string(),

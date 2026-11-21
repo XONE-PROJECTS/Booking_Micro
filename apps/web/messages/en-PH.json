@@ -1,0 +1,22 @@
+{
+  "portal": {
+    "catalog": "Services",
+    "bookNow": "Book now",
+    "lookup": "Find your booking",
+    "account": "My account",
+    "from": "From",
+    "loading": "Loading…",
+    "error": "Something went wrong",
+    "next": "Continue",
+    "back": "Back",
+    "confirm": "Confirm booking",
+    "when": "When",
+    "time": "Time",
+    "details": "Your details",
+    "review": "Review",
+    "terms": "I accept the terms and policies",
+    "payNow": "Pay now",
+    "reference": "Reference",
+    "saveToken": "Save this access code to manage your booking later"
+  }
+}

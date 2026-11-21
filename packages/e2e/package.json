@@ -1,0 +1,13 @@
+{
+  "name": "@universal-booking/e2e",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "test:e2e": "playwright test",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.52.0",
+    "typescript": "~5.9.3"
+  }
+}

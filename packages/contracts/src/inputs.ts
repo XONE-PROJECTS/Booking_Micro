@@ -439,9 +439,12 @@ export const guestInput = z.object({
   attributes: z.record(z.string(), z.unknown()).optional(),
 });
 
+export const bookingLineItemInput = quoteInput;
+
 export const createBookingInput = quoteInput.extend({
   customerId: id.optional().describe('Staff and integrations only'),
   customer: customerDetailsInput.optional(),
+  items: z.array(bookingLineItemInput).max(20).optional().describe('Additional line items; the top-level serviceId/request is always the first item'),
   guests: z.array(guestInput).max(100).optional(),
   answers: z.record(z.string(), z.unknown()).default({}),
   notes: z.string().max(2000).optional(),

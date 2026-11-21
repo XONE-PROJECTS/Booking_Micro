@@ -1,0 +1,6 @@
+---
+description: Universal Booking coding standards
+alwaysApply: true
+---
+
+Follow [docs/development/CODING_STANDARDS.md](docs/development/CODING_STANDARDS.md): tenant-scoped data access, server-side pricing, Zod contracts, idempotency on bookings, outbox for events.

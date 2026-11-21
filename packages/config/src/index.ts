@@ -57,8 +57,8 @@ export const envSchema = z
     ENABLE_ADMIN_APP: bool(true),
     ENABLE_BOOKING_PORTAL: bool(true),
     ENABLE_EMBED_WIDGET: bool(true),
-    ADMIN_APP_URL: z.url().default('http://localhost:5173'),
-    PORTAL_APP_URL: z.url().default('http://localhost:5174'),
+    ADMIN_APP_URL: z.url().default('http://localhost:3000'),
+    PORTAL_APP_URL: z.url().default('http://localhost:3000'),
     CORS_ORIGINS: csv,
 
     REDIS_ENABLED: bool(false),

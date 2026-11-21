@@ -1,7 +1,8 @@
 import { and, asc, eq, ilike, isNull, or, sql, type SQL } from 'drizzle-orm';
 import { z } from 'zod';
 import { errors, newId, offsetOf, pageMeta } from '@universal-booking/core';
-import { resources, serviceCategories, serviceOptions, serviceResources, services, serviceVersions } from '@universal-booking/database';
+import { formDefinitions, resources, serviceCategories, serviceOptions, serviceResources, services, serviceVersions } from '@universal-booking/database';
+import { loadServiceVersion } from './services';
 import { categoryInput, idParam, pageQuery, serviceInput, serviceOptionInput } from '@universal-booking/contracts';
 import type { RouteBuilder } from '../../http/route';
 import { Reply } from '../../http/envelope';
@@ -15,6 +16,109 @@ const serviceListQuery = pageQuery.extend({
 });
 
 export function registerCatalogRoutes(route: RouteBuilder) {
+  route({
+    method: 'get',
+    path: '/public/:businessSlug/services',
+    summary: 'Published public catalog for the booking portal',
+    tags: ['Public', 'Catalog'],
+    auth: 'none',
+    tenant: 'public',
+    params: z.object({ businessSlug: z.string() }),
+    query: pageQuery,
+    async handler({ tx, query }) {
+      return tx(async (t) => {
+        const where = and(eq(services.status, 'published'), eq(services.visibility, 'public'), isNull(services.deletedAt));
+        const rows = await t
+          .select({
+            id: services.id,
+            name: services.name,
+            slug: services.slug,
+            shortDescription: services.shortDescription,
+            imageUrl: services.imageUrl,
+            currency: services.currency,
+            basePrice: services.basePrice,
+            categoryId: services.categoryId,
+          })
+          .from(services)
+          .where(where)
+          .orderBy(asc(services.sortOrder), asc(services.name))
+          .limit(query.pageSize)
+          .offset(offsetOf(query));
+        return Reply.paged(rows, pageMeta(query, rows.length));
+      });
+    },
+  });
+
+  route({
+    method: 'get',
+    path: '/public/:businessSlug/categories',
+    summary: 'Public service categories',
+    tags: ['Public', 'Catalog'],
+    auth: 'none',
+    tenant: 'public',
+    params: z.object({ businessSlug: z.string() }),
+    async handler({ tx }) {
+      return tx(async (t) => {
+        const rows = await t
+          .select({ id: serviceCategories.id, name: serviceCategories.name, slug: serviceCategories.slug, parentId: serviceCategories.parentId, sortOrder: serviceCategories.sortOrder })
+          .from(serviceCategories)
+          .where(eq(serviceCategories.status, 'active'))
+          .orderBy(asc(serviceCategories.sortOrder), asc(serviceCategories.name));
+        return rows;
+      });
+    },
+  });
+
+  route({
+    method: 'get',
+    path: '/public/:businessSlug/services/:slug',
+    summary: 'One public service by slug',
+    tags: ['Public', 'Catalog'],
+    auth: 'none',
+    tenant: 'public',
+    params: z.object({ businessSlug: z.string(), slug: z.string() }),
+    async handler({ tx, params }) {
+      return tx(async (t) => {
+        const [s] = await t
+          .select()
+          .from(services)
+          .where(and(eq(services.slug, params.slug), eq(services.status, 'published'), eq(services.visibility, 'public'), isNull(services.deletedAt)));
+        if (!s) throw errors.notFound('Service');
+        const { version } = await loadServiceVersion(t, s.id, { requirePublic: true });
+        const options = await t
+          .select({ id: serviceOptions.id, name: serviceOptions.name, price: serviceOptions.price, chargeType: serviceOptions.chargeType, maxQuantity: serviceOptions.maxQuantity, required: serviceOptions.required })
+          .from(serviceOptions)
+          .where(and(eq(serviceOptions.serviceId, s.id), eq(serviceOptions.status, 'active')))
+          .orderBy(asc(serviceOptions.sortOrder));
+        return { ...serviceView(s), definition: version.snapshot.definition, options };
+      });
+    },
+  });
+
+  route({
+    method: 'get',
+    path: '/public/:businessSlug/services/:slug/form',
+    summary: 'Published booking form schema for a service',
+    tags: ['Public', 'Catalog'],
+    auth: 'none',
+    tenant: 'public',
+    params: z.object({ businessSlug: z.string(), slug: z.string() }),
+    async handler({ tx, params }) {
+      return tx(async (t) => {
+        const [s] = await t
+          .select({ id: services.id })
+          .from(services)
+          .where(and(eq(services.slug, params.slug), eq(services.status, 'published'), eq(services.visibility, 'public'), isNull(services.deletedAt)));
+        if (!s) throw errors.notFound('Service');
+        const { version } = await loadServiceVersion(t, s.id, { requirePublic: true });
+        const formId = version.snapshot.formId;
+        if (!formId) return { schema: { fields: [] } };
+        const [form] = await t.select().from(formDefinitions).where(eq(formDefinitions.id, formId));
+        if (!form) return { schema: { fields: [] } };
+        return { formId, name: form.name, schema: form.schema };
+      });
+    },
+  });
   crudRoutes(route, {
     path: '/service-categories',
     tag: 'Catalog',

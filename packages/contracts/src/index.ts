@@ -18,3 +18,7 @@ export type CalendarDayView = z.infer<typeof R.calendarDay>;
 export type ServiceView = z.infer<typeof R.serviceView>;
 export type PricingResultView = z.infer<typeof R.pricingResult>;
 export type AuthSession = z.infer<typeof R.authSession>;
+export type RecordPaymentInput = z.input<typeof I.recordPaymentInput>;
+export type CreateCheckoutInput = z.input<typeof I.createCheckoutInput>;
+export type PaymentView = z.infer<typeof R.paymentView>;
+export type RescheduleInput = z.input<typeof I.rescheduleInput>;

@@ -123,7 +123,17 @@ export function crudRoutes<T extends TenantTable>(route: RouteBuilder, o: CrudOp
   }
 
   if (enabled('update')) {
-    const updateSchema = o.updateInput ?? (o.input instanceof z.ZodObject ? o.input.partial() : o.input);
+    const updateSchema =
+      o.updateInput ??
+      (o.input instanceof z.ZodObject
+        ? (() => {
+            try {
+              return o.input.partial();
+            } catch {
+              return z.object({}).loose();
+            }
+          })()
+        : o.input);
     route({
       method: 'patch',
       path: `${o.path}/:id`,

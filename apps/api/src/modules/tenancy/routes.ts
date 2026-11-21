@@ -377,6 +377,7 @@ export function registerTenancyRoutes(route: RouteBuilder) {
                 borderRadius: branding.borderRadius,
                 whiteLabel: branding.whiteLabel,
                 portal: branding.portal,
+                embedAllowedOrigins: branding.embedAllowedOrigins ?? [],
               }
             : null,
         };
