@@ -119,7 +119,20 @@ export function BookWizard({
     if (slot) body.startAt = slot.start;
     if (recurringMode) body.recurrence = { frequency: recurrenceFreq, interval: 1, count: recurrenceCount };
     return body;
-  }, [date, endDate, optionQty, participants, promo, quantity, rangeMode, recurringMode, recurrenceCount, recurrenceFreq, serviceSlug, slot]);
+  }, [
+    date,
+    endDate,
+    optionQty,
+    participants,
+    promo,
+    quantity,
+    rangeMode,
+    recurringMode,
+    recurrenceCount,
+    recurrenceFreq,
+    serviceSlug,
+    slot,
+  ]);
 
   const loadSlots = useCallback(async () => {
     if (!service || !date) return;
@@ -135,16 +148,21 @@ export function BookWizard({
     }
   }, [businessSlug, date, quantity, service, t]);
 
-  const loadQuote = useCallback(async () => {
-    if (!service) return;
+  const loadQuote = useCallback(async (): Promise<boolean> => {
+    if (!service) return false;
     setBusy(true);
     setError(null);
     try {
       const data = await apiPost<Quote>(`/public/${businessSlug}/pricing/quote`, quoteBody());
       setQuote(data);
-      if (!data.available) setError('Not available for this selection.');
+      if (!data.available) {
+        setError('Not available for this selection.');
+        return false;
+      }
+      return true;
     } catch (e) {
       setError(e instanceof Error ? e.message : t('error'));
+      return false;
     } finally {
       setBusy(false);
     }
@@ -169,8 +187,10 @@ export function BookWizard({
       postBookingCompleted(embedAllowedOrigins, data);
       const due = data.pricing?.amountDueNow ?? quote.pricing.amountDueNow;
       if (due && Number(due) > 0) {
+        const confirmParams = new URLSearchParams({ reference: data.reference });
+        if (data.accessToken) confirmParams.set('token', data.accessToken);
         const checkout = await apiPost<{ checkoutUrl?: string | null }>(`/public/${businessSlug}/bookings/${data.id}/checkout`, {
-          successUrl: `${window.location.origin}/${businessSlug}/booking/confirmation?reference=${encodeURIComponent(data.reference)}${data.accessToken ? `&token=${encodeURIComponent(data.accessToken)}` : ''}`,
+          successUrl: `${window.location.origin}${portalBase}/booking/confirmation?${confirmParams}`,
           cancelUrl: window.location.href,
         });
         if (checkout.checkoutUrl) {
@@ -191,7 +211,10 @@ export function BookWizard({
   const next = async () => {
     const key = steps[step];
     if (key === 'when' && slotMode) await loadSlots();
-    if (key === 'form') await loadQuote();
+    if (key === 'form') {
+      const ok = await loadQuote();
+      if (!ok) return;
+    }
     if (step < steps.length - 1) setStep(step + 1);
   };
 
@@ -245,7 +268,14 @@ export function BookWizard({
             </select>
           </Field>
           <Field label="Number of occurrences" id="rc">
-            <Input id="rc" type="number" min={2} max={104} value={recurrenceCount} onChange={(e) => setRecurrenceCount(Number(e.target.value) || 2)} />
+            <Input
+              id="rc"
+              type="number"
+              min={2}
+              max={104}
+              value={recurrenceCount}
+              onChange={(e) => setRecurrenceCount(Number(e.target.value) || 2)}
+            />
           </Field>
           <Button onClick={() => void next()}>{t('next')}</Button>
           <Button onClick={back}>{t('back')}</Button>
@@ -349,11 +379,33 @@ export function BookWizard({
             ) : null}
           </ul>
           <Field label={t('details')} id="cust-fn">
-            <Input id="cust-fn" placeholder="First name" value={customer.firstName} onChange={(e) => setCustomer({ ...customer, firstName: e.target.value })} required />
+            <Input
+              id="cust-fn"
+              placeholder="First name"
+              value={customer.firstName}
+              onChange={(e) => setCustomer({ ...customer, firstName: e.target.value })}
+              required
+            />
           </Field>
-          <Input aria-label="Last name" placeholder="Last name" value={customer.lastName} onChange={(e) => setCustomer({ ...customer, lastName: e.target.value })} />
-          <Input aria-label="Email" type="email" value={customer.email} onChange={(e) => setCustomer({ ...customer, email: e.target.value })} required />
-          <Input aria-label="Phone" type="tel" value={customer.phone} onChange={(e) => setCustomer({ ...customer, phone: e.target.value })} />
+          <Input
+            aria-label="Last name"
+            placeholder="Last name"
+            value={customer.lastName}
+            onChange={(e) => setCustomer({ ...customer, lastName: e.target.value })}
+          />
+          <Input
+            aria-label="Email"
+            type="email"
+            value={customer.email}
+            onChange={(e) => setCustomer({ ...customer, email: e.target.value })}
+            required
+          />
+          <Input
+            aria-label="Phone"
+            type="tel"
+            value={customer.phone}
+            onChange={(e) => setCustomer({ ...customer, phone: e.target.value })}
+          />
           <label>
             <input type="checkbox" checked={terms} onChange={(e) => setTerms(e.target.checked)} required /> {t('terms')}
           </label>

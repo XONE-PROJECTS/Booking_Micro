@@ -26,6 +26,16 @@ const nav = [
   ['platform', 'Platform'],
 ] as const;
 
+function navHref(segment: string) {
+  return segment ? `/admin/${segment}` : '/admin';
+}
+
+function navActive(pathname: string, segment: string) {
+  const href = navHref(segment);
+  if (segment === '') return pathname === '/admin' || pathname === '/admin/';
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
+
 function Chrome({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const { session, logout } = useAdminAuth();
@@ -46,11 +56,17 @@ function Chrome({ children }: { children: ReactNode }) {
           <ul>
             {nav
               .filter(([segment]) => segment !== 'platform' || session?.user?.isPlatformAdmin)
-              .map(([segment, label]) => (
-                <li key={segment}>
-                  <Link href={segment ? `/admin/${segment}` : '/admin'}>{label}</Link>
-                </li>
-              ))}
+              .map(([segment, label]) => {
+                const href = navHref(segment);
+                const active = navActive(pathname, segment);
+                return (
+                  <li key={segment}>
+                    <Link href={href} className={active ? 'active' : undefined} aria-current={active ? 'page' : undefined}>
+                      {label}
+                    </Link>
+                  </li>
+                );
+              })}
           </ul>
         </nav>
         <button type="button" className="portal-btn" onClick={logout}>

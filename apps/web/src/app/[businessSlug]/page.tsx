@@ -15,10 +15,22 @@ export default function PortalHome() {
   const [services, setServices] = useState<PublicService[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [categoryId, setCategoryId] = useState<string>('');
+  const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    void apiGet<PublicService[]>(`/public/${businessSlug}/services?pageSize=50`).then(setServices);
-    void apiGet<Category[]>(`/public/${businessSlug}/categories`).then(setCategories).catch(() => setCategories([]));
+    setLoaded(false);
+    void apiGet<PublicService[]>(`/public/${businessSlug}/services?pageSize=50`)
+      .then((rows) => {
+        setServices(rows);
+        setLoaded(true);
+      })
+      .catch(() => {
+        setServices([]);
+        setLoaded(true);
+      });
+    void apiGet<Category[]>(`/public/${businessSlug}/categories`)
+      .then(setCategories)
+      .catch(() => setCategories([]));
   }, [businessSlug]);
 
   const filtered = useMemo(() => (categoryId ? services.filter((s) => s.categoryId === categoryId) : services), [categoryId, services]);
@@ -52,7 +64,7 @@ export default function PortalHome() {
           </Link>
         ))}
       </div>
-      {filtered.length === 0 ? <p className="card">{t('loading')}</p> : null}
+      {filtered.length === 0 ? <p className="card">{loaded ? 'No services are available right now.' : t('loading')}</p> : null}
     </>
   );
 }

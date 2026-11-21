@@ -2,12 +2,18 @@ import Link from 'next/link';
 import type { ReactNode } from 'react';
 import type { PortalProfile } from '@/lib/portal-api';
 
+const WARM = {
+  accent: '#c4622d',
+  bg: '#f6f1e8',
+  fg: '#2a2118',
+} as const;
+
 export function PortalShell({ profile, children }: { profile: PortalProfile; children: ReactNode }) {
   const b = profile.branding;
   const style = {
-    ['--accent' as string]: b?.primaryColor ?? '#3b82f6',
-    ['--portal-bg' as string]: b?.backgroundColor ?? 'var(--bg)',
-    ['--portal-fg' as string]: b?.textColor ?? 'var(--fg)',
+    ['--accent' as string]: b?.primaryColor ?? WARM.accent,
+    ['--portal-bg' as string]: b?.backgroundColor ?? WARM.bg,
+    ['--portal-fg' as string]: b?.textColor ?? WARM.fg,
     fontFamily: b?.fontFamily,
     borderRadius: b?.borderRadius,
   };
@@ -21,7 +27,7 @@ export function PortalShell({ profile, children }: { profile: PortalProfile; chi
       </a>
       <header className="portal-header">
         <div className="portal-header-inner">
-          {b?.logoUrl ? <img src={b.logoUrl} alt="" width={140} height={40} /> : <strong>{name}</strong>}
+          {b?.logoUrl ? <img src={b.logoUrl} alt="" width={140} height={40} /> : <strong className="portal-brand">{name}</strong>}
           <nav aria-label="Portal">
             <Link href={`/${profile.slug}`}>Services</Link>
             <Link href={`/${profile.slug}/lookup`}>Find booking</Link>
@@ -30,11 +36,15 @@ export function PortalShell({ profile, children }: { profile: PortalProfile; chi
         </div>
         {b?.portal?.headerHtml ? <div className="portal-html" dangerouslySetInnerHTML={{ __html: b.portal.headerHtml }} /> : null}
       </header>
-      <main id="portal-main" className="shell">
+      <main id="portal-main" className="shell portal-main">
         {children}
       </main>
       <footer className="portal-footer">
-        {b?.portal?.footerHtml ? <div className="portal-html" dangerouslySetInnerHTML={{ __html: b.portal.footerHtml }} /> : <p>© {name}</p>}
+        {b?.portal?.footerHtml ? (
+          <div className="portal-html" dangerouslySetInnerHTML={{ __html: b.portal.footerHtml }} />
+        ) : (
+          <p>© {name}</p>
+        )}
       </footer>
     </div>
   );

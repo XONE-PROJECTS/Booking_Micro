@@ -1,7 +1,16 @@
 import { and, eq } from 'drizzle-orm';
 import { toLocalIso } from '@universal-booking/core';
 import { renderTemplate, textToHtml } from '@universal-booking/notification-providers';
-import { bookings, businessProfiles, customers, notificationLogs, notificationTemplates, services } from '@universal-booking/database';
+import { newId } from '@universal-booking/core';
+import {
+  bookings,
+  businessProfiles,
+  customers,
+  inAppNotifications,
+  notificationLogs,
+  notificationTemplates,
+  services,
+} from '@universal-booking/database';
 import type { AppContext } from '../context';
 
 const BATCH = 50;
@@ -76,6 +85,20 @@ export async function deliverQueuedNotifications(ctx: AppContext): Promise<numbe
             await tx
               .update(notificationLogs)
               .set({ status: 'sent', provider: sent.provider, providerMessageId: sent.messageId, sentAt: now, attempts: log.attempts + 1 })
+              .where(eq(notificationLogs.id, log.id));
+          } else if (log.channel === 'in_app') {
+            const link = log.bookingId ? `/admin/bookings` : null;
+            await tx.insert(inAppNotifications).values({
+              id: newId(),
+              tenantId: log.tenantId,
+              userId: log.recipient,
+              title: subject,
+              body: text,
+              link,
+            });
+            await tx
+              .update(notificationLogs)
+              .set({ status: 'sent', provider: 'in_app', sentAt: now, attempts: log.attempts + 1 })
               .where(eq(notificationLogs.id, log.id));
           } else {
             const sent = await ctx.notifier.sms.send({ to: log.recipient, text });

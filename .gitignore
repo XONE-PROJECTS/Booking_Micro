@@ -6,7 +6,13 @@ coverage/
 .env.local
 *.log
 .pgdata/
-storage/
+.local-pg-data/
+.local-pg-log
+.local-pg-pw
+graphify-out/
+*.tsbuildinfo
+/storage/
+.next/
 playwright-report/
 test-results/
 .DS_Store

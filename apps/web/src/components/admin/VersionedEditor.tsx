@@ -33,6 +33,10 @@ export function VersionedEditor({
 
   useEffect(() => load(), [load]);
 
+  useEffect(() => {
+    if (!selected && !json) setJson(JSON.stringify(defaultBody, null, 2));
+  }, [defaultBody, json, selected]);
+
   async function openRow(id: string) {
     if (!token) return;
     const one = await adminGet<Record<string, unknown>>(`${basePath}/${id}`, token).catch(() => null);
@@ -46,7 +50,7 @@ export function VersionedEditor({
     if (!token) return;
     let parsed: unknown;
     try {
-      parsed = JSON.parse(json || '{}');
+      parsed = JSON.parse(json || JSON.stringify(defaultBody));
     } catch {
       setMsg('Invalid JSON');
       return;

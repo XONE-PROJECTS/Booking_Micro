@@ -1,0 +1,13 @@
+node_modules
+dist
+coverage
+.turbo
+.next
+.pgdata
+graphify-out
+playwright-report
+test-results
+package-lock.json
+openapi.json
+apps/web/.next
+packages/database/migrations/meta

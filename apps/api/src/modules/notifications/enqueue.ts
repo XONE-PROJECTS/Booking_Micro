@@ -1,6 +1,31 @@
-import { and, eq } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import { newId } from '@universal-booking/core';
-import { bookings, customers, notificationLogs, notificationTemplates, type Tx } from '@universal-booking/database';
+import {
+  bookings,
+  customers,
+  membershipRoles,
+  notificationLogs,
+  notificationTemplates,
+  rolePermissions,
+  tenantMemberships,
+  type Tx,
+} from '@universal-booking/database';
+
+async function staffUserIds(tx: Tx, tenantId: string): Promise<string[]> {
+  const rows = await tx
+    .selectDistinct({ userId: tenantMemberships.userId })
+    .from(tenantMemberships)
+    .innerJoin(membershipRoles, eq(membershipRoles.membershipId, tenantMemberships.id))
+    .innerJoin(rolePermissions, eq(rolePermissions.roleId, membershipRoles.roleId))
+    .where(
+      and(
+        eq(tenantMemberships.tenantId, tenantId),
+        eq(tenantMemberships.status, 'active'),
+        inArray(rolePermissions.permissionKey, ['bookings.read', 'bookings.approve', 'bookings.manage']),
+      ),
+    );
+  return rows.map((r) => r.userId);
+}
 
 export async function enqueueNotificationsFromOutbox(
   tx: Tx,
@@ -23,13 +48,41 @@ export async function enqueueNotificationsFromOutbox(
   }
 
   for (const templateKey of keys) {
-    for (const channel of ['email', 'sms'] as const) {
+    for (const channel of ['email', 'sms', 'in_app'] as const) {
       const [tpl] = await tx
         .select()
         .from(notificationTemplates)
-        .where(and(eq(notificationTemplates.tenantId, input.tenantId), eq(notificationTemplates.key, templateKey), eq(notificationTemplates.channel, channel), eq(notificationTemplates.active, true)));
+        .where(
+          and(
+            eq(notificationTemplates.tenantId, input.tenantId),
+            eq(notificationTemplates.key, templateKey),
+            eq(notificationTemplates.channel, channel),
+            eq(notificationTemplates.active, true),
+          ),
+        );
       if (!tpl) continue;
-      const to = channel === 'email' ? (recipient?.includes('@') ? recipient : null) : recipient && !recipient.includes('@') ? recipient : null;
+
+      if (channel === 'in_app') {
+        if (!templateKey.startsWith('staff.')) continue;
+        const userIds = await staffUserIds(tx, input.tenantId);
+        if (!userIds.length) continue;
+        for (const userId of userIds) {
+          await tx.insert(notificationLogs).values({
+            id: newId(),
+            tenantId: input.tenantId,
+            templateKey,
+            channel,
+            recipient: userId,
+            subject: tpl.subject,
+            status: 'queued',
+            bookingId,
+          });
+        }
+        continue;
+      }
+
+      const to =
+        channel === 'email' ? (recipient?.includes('@') ? recipient : null) : recipient && !recipient.includes('@') ? recipient : null;
       if (!to) {
         await tx.insert(notificationLogs).values({
           id: newId(),

@@ -1,13 +1,39 @@
 import { Readable } from 'node:stream';
-import { eq } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 import { z } from 'zod';
 import { errors, newId } from '@universal-booking/core';
 import { fileAttachments } from '@universal-booking/database';
 import type { RouteBuilder } from '../../http/route';
 import { Reply } from '../../http/envelope';
-import { storeLocalFile } from '../../storage/local';
+import { readLocalFile, storeLocalFile } from '../../storage/local';
+import { idParam } from '@universal-booking/contracts';
 
 export function registerFileRoutes(route: RouteBuilder) {
+  route({
+    method: 'get',
+    path: '/files/:id',
+    summary: 'Download a file attachment',
+    tags: ['Files'],
+    auth: 'user',
+    permission: 'bookings.read',
+    params: idParam,
+    async handler({ app, tx, params }) {
+      const [row] = await tx((t) =>
+        t
+          .select()
+          .from(fileAttachments)
+          .where(and(eq(fileAttachments.id, params.id), isNull(fileAttachments.deletedAt))),
+      );
+      if (!row) throw errors.notFound('File');
+      if (row.driver !== 'local') throw errors.unavailable('Download is only supported for local storage.');
+      const body = await readLocalFile(row.storageKey, app.env.STORAGE_LOCAL_DIR);
+      return new Reply(200, null, {
+        raw: { contentType: row.mimeType, body },
+        headers: { 'content-disposition': `attachment; filename="${row.fileName.replace(/"/g, '')}"` },
+      });
+    },
+  });
+
   route({
     method: 'post',
     path: '/files',

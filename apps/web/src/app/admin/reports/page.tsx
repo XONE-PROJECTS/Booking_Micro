@@ -6,7 +6,7 @@ import { useAdminAuth } from '@/components/admin/AdminAuthProvider';
 import { DataTable, PageHeader } from '@/components/admin/ui';
 import { Button, Field, Input } from '@/components/portal/ui';
 
-const kinds = ['bookings', 'revenue', 'services', 'cancellations', 'customers', 'payments', 'trends'] as const;
+const kinds = ['bookings', 'revenue', 'services', 'occupancy', 'utilization', 'cancellations', 'customers', 'payments', 'trends'] as const;
 
 export default function ReportsPage() {
   const { token } = useAdminAuth();
@@ -33,7 +33,13 @@ export default function ReportsPage() {
     setData(res);
   }
 
-  const rows = Array.isArray((data as { rows?: unknown[] })?.rows) ? (data as { rows: Record<string, unknown>[] }).rows : Array.isArray(data) ? data as Record<string, unknown>[] : data && typeof data === 'object' ? [data as Record<string, unknown>] : [];
+  const rows = Array.isArray((data as { rows?: unknown[] })?.rows)
+    ? (data as { rows: Record<string, unknown>[] }).rows
+    : Array.isArray(data)
+      ? (data as Record<string, unknown>[])
+      : data && typeof data === 'object'
+        ? [data as Record<string, unknown>]
+        : [];
   const cols = Object.keys(rows[0] ?? { value: 'value' }).map((k) => ({ key: k, label: k }));
 
   return (
@@ -41,11 +47,17 @@ export default function ReportsPage() {
       <PageHeader title="Reports" />
       <div className="admin-actions">
         {kinds.map((k) => (
-          <button key={k} type="button" className={kind === k ? 'portal-btn' : 'link-btn'} onClick={() => setKind(k)}>{k}</button>
+          <button key={k} type="button" className={kind === k ? 'portal-btn' : 'link-btn'} onClick={() => setKind(k)}>
+            {k}
+          </button>
         ))}
       </div>
-      <Field label="From" id="f"><Input id="f" type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></Field>
-      <Field label="To" id="t"><Input id="t" type="date" value={to} onChange={(e) => setTo(e.target.value)} /></Field>
+      <Field label="From" id="f">
+        <Input id="f" type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
+      </Field>
+      <Field label="To" id="t">
+        <Input id="t" type="date" value={to} onChange={(e) => setTo(e.target.value)} />
+      </Field>
       <Button onClick={() => void load('json')}>Run</Button>
       <Button onClick={() => void load('csv')}>Download CSV</Button>
       <DataTable columns={cols} rows={rows} />

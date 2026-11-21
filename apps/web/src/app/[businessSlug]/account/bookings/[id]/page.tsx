@@ -1,6 +1,8 @@
 'use client';
 
+import Link from 'next/link';
 import { useParams } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { useEffect, useState } from 'react';
 import { apiGet, apiPost } from '@/lib/api';
 import { getCustomerToken } from '@/lib/portal-api';
@@ -10,14 +12,25 @@ type BookingView = { id: string; reference: string; status: string; localStart?:
 
 export default function BookingDetailPage() {
   const { businessSlug, id } = useParams<{ businessSlug: string; id: string }>();
+  const t = useTranslations('portal');
   const [booking, setBooking] = useState<BookingView | null>(null);
   const [newDate, setNewDate] = useState('');
   const [msg, setMsg] = useState<string | null>(null);
+  const [authState, setAuthState] = useState<'loading' | 'guest' | 'ready'>('loading');
 
   useEffect(() => {
     const token = getCustomerToken(businessSlug);
-    if (!token) return;
-    void apiGet<BookingView>(`/bookings/${id}`, token).then(setBooking);
+    if (!token) {
+      setAuthState('guest');
+      return;
+    }
+    setAuthState('loading');
+    void apiGet<BookingView>(`/bookings/${id}`, token)
+      .then((b) => {
+        setBooking(b);
+        setAuthState('ready');
+      })
+      .catch(() => setAuthState('guest'));
   }, [businessSlug, id]);
 
   async function cancel() {
@@ -36,7 +49,12 @@ export default function BookingDetailPage() {
     const token = getCustomerToken(businessSlug);
     if (!token || !newDate) return;
     try {
-      const updated = await apiPost<BookingView>(`/bookings/${id}/reschedule`, { startDate: newDate, reason: 'Customer request' }, undefined, token);
+      const updated = await apiPost<BookingView>(
+        `/bookings/${id}/reschedule`,
+        { startDate: newDate, reason: 'Customer request' },
+        undefined,
+        token,
+      );
       setBooking(updated);
       setMsg('Rescheduled.');
     } catch (e) {
@@ -44,7 +62,20 @@ export default function BookingDetailPage() {
     }
   }
 
-  if (!booking) return <p>Loading or sign in required.</p>;
+  if (authState === 'guest') {
+    return (
+      <div className="card">
+        <p>Sign in to view this booking, or use guest lookup with your reference and access token.</p>
+        <p>
+          <Link href={`/${businessSlug}/account`}>{t('account')}</Link>
+          {' · '}
+          <Link href={`/${businessSlug}/lookup`}>{t('lookup')}</Link>
+        </p>
+      </div>
+    );
+  }
+
+  if (authState === 'loading' || !booking) return <p>{t('loading')}</p>;
 
   return (
     <div className="card">

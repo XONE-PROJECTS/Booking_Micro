@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { adminGetList, adminPost } from '@/lib/admin-api';
+import { adminGetList, adminPatch, adminPost } from '@/lib/admin-api';
 import { useAdminAuth } from '@/components/admin/AdminAuthProvider';
 import { DataTable, PageHeader } from '@/components/admin/ui';
 import { Button, Field, Input } from '@/components/portal/ui';
@@ -11,6 +11,9 @@ export default function CatalogPage() {
   const [services, setServices] = useState<Record<string, unknown>[]>([]);
   const [name, setName] = useState('');
   const [msg, setMsg] = useState<string | null>(null);
+  const [editId, setEditId] = useState<string | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editPrice, setEditPrice] = useState('');
 
   const load = () => {
     if (!token) return;
@@ -41,6 +44,20 @@ export default function CatalogPage() {
     load();
   }
 
+  function startEdit(row: Record<string, unknown>) {
+    setEditId(String(row.id));
+    setEditName(String(row.name ?? ''));
+    setEditPrice(String(row.basePrice ?? '0'));
+  }
+
+  async function saveEdit() {
+    if (!token || !editId) return;
+    await adminPatch(`/services/${editId}`, { name: editName, basePrice: editPrice }, token);
+    setEditId(null);
+    setMsg('Service updated');
+    load();
+  }
+
   return (
     <div>
       <PageHeader title="Catalog" />
@@ -50,6 +67,18 @@ export default function CatalogPage() {
         </Field>
         <Button onClick={() => void createService()}>Add service</Button>
       </div>
+      {editId ? (
+        <div className="card filter-bar">
+          <Field label="Name" id="en">
+            <Input id="en" value={editName} onChange={(e) => setEditName(e.target.value)} />
+          </Field>
+          <Field label="Base price" id="ep">
+            <Input id="ep" value={editPrice} onChange={(e) => setEditPrice(e.target.value)} />
+          </Field>
+          <Button onClick={() => void saveEdit()}>Save</Button>
+          <Button onClick={() => setEditId(null)}>Cancel</Button>
+        </div>
+      ) : null}
       {msg ? <p>{msg}</p> : null}
       <DataTable
         columns={[
@@ -61,6 +90,7 @@ export default function CatalogPage() {
             label: 'Actions',
             render: (r) => (
               <>
+                <Button onClick={() => startEdit(r)}>Edit</Button>
                 <Button onClick={() => void publish(String(r.id))}>Publish</Button>
                 <Button onClick={() => void archive(String(r.id))}>Archive</Button>
               </>

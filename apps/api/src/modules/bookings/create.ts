@@ -1,6 +1,14 @@
 import { and, eq, sql } from 'drizzle-orm';
 import { createOpaqueToken, hashOpaqueToken } from '@universal-booking/auth';
-import { errors, formatBookingReference, moneyString, newId, sumMoney, validateFormSubmission, type FormSchema } from '@universal-booking/core';
+import {
+  errors,
+  formatBookingReference,
+  moneyString,
+  newId,
+  sumMoney,
+  validateFormSubmission,
+  type FormSchema,
+} from '@universal-booking/core';
 import { categoryOf, categoryRules, initialStatus } from '@universal-booking/workflow-engine';
 import { releaseExpiredHolds, lockInventory } from './inventory';
 import {
@@ -43,9 +51,15 @@ async function upsertCustomer(tx: Tx, tenantId: string, input: CreateBookingInpu
     if (!c) throw errors.notFound('Customer');
     return c.id;
   }
-  if (!input.customer?.email && !input.customer?.phone) throw errors.validation('Customer contact details are required.', [{ path: 'customer', message: 'Required' }]);
+  if (!input.customer?.email && !input.customer?.phone)
+    throw errors.validation('Customer contact details are required.', [{ path: 'customer', message: 'Required' }]);
   const email = input.customer.email?.toLowerCase();
-  const [existing] = email ? await tx.select().from(customers).where(and(eq(customers.tenantId, tenantId), sql`lower(${customers.email}) = ${email}`)) : [];
+  const [existing] = email
+    ? await tx
+        .select()
+        .from(customers)
+        .where(and(eq(customers.tenantId, tenantId), sql`lower(${customers.email}) = ${email}`))
+    : [];
   if (existing) {
     await tx
       .update(customers)
@@ -93,7 +107,11 @@ export async function createBookingRecord(
   const [formRow] = snap.formId ? await tx.select().from(formDefinitions).where(eq(formDefinitions.id, snap.formId)) : [];
   if (formRow) {
     const check = validateFormSubmission(formRow.schema as FormSchema, input.body.answers ?? {});
-    if (!check.valid) throw errors.validation('Form answers are invalid.', check.errors.map((e) => ({ path: e.path, message: e.message })));
+    if (!check.valid)
+      throw errors.validation(
+        'Form answers are invalid.',
+        check.errors.map((e) => ({ path: e.path, message: e.message })),
+      );
   }
 
   const { plan, workflow, policy } = await quoteForService(app, tx, {
@@ -121,7 +139,8 @@ export async function createBookingRecord(
   const endAt = plan.duration.periods.at(-1)!.end;
   const status = plan.position.status;
   const statusCategory = categoryOf(workflow, status.key);
-  const holdExpires = input.body.hold || plan.paymentRequired || plan.approvalRequired ? new Date(app.now().getTime() + input.holdMinutes * 60_000) : null;
+  const holdExpires =
+    input.body.hold || plan.paymentRequired || plan.approvalRequired ? new Date(app.now().getTime() + input.holdMinutes * 60_000) : null;
 
   let accessToken: string | undefined;
   let accessTokenHash: string | null = null;
@@ -226,9 +245,14 @@ export async function createBookingRecord(
         await addGuests(tx, input.tenantId, bookingId, input.body.guests);
       }
 
-      const extraLines = input.body.items?.filter((li) => li.serviceId && (li.serviceId !== service.id || (li.startDate && li.startDate !== input.body.startDate))) ?? [];
+      const extraLines =
+        input.body.items?.filter(
+          (li) => li.serviceId && (li.serviceId !== service.id || (li.startDate && li.startDate !== input.body.startDate)),
+        ) ?? [];
       for (const line of extraLines) {
-        const { service: svc2, version: ver2 } = await loadServiceVersion(tx, line.serviceId, { requirePublic: input.actor === 'customer' });
+        const { service: svc2, version: ver2 } = await loadServiceVersion(tx, line.serviceId, {
+          requirePublic: input.actor === 'customer',
+        });
         const snap2 = ver2.snapshot;
         const { plan: plan2 } = await quoteForService(app, tx, {
           tenantId: input.tenantId,
@@ -293,13 +317,16 @@ export async function createBookingRecord(
       });
 
       const ev = eventForStatus(status.key, statusCategory) ?? 'booking.created';
+      const notify = [...plan.position.notifications];
+      if (!notify.includes('staff.booking_created')) notify.push('staff.booking_created');
+      if (plan.approvalRequired && !notify.includes('staff.approval_required')) notify.push('staff.approval_required');
       await emitEvent(tx, {
         tenantId: input.tenantId,
         type: ev,
         aggregateType: 'booking',
         aggregateId: bookingId,
         payload: { reference, serviceId: service.id, status: status.key },
-        notify: plan.position.notifications,
+        notify,
       });
 
       const [row] = await tx.select().from(bookings).where(eq(bookings.id, bookingId));
